@@ -1,0 +1,27 @@
+<!-- frontend/templates/importar.html -->
+{% extends 'base.html' %}
+
+{% block title %}Importar Extrato – Gestor de Notas{% endblock %}
+
+{% block content %}
+<section class="pt-5 pb-5">
+  <div class="container">
+    <h3 class="mb-4">Importar Extrato Bancário</h3>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, msg in messages %}
+          <div class="alert alert-{{ category }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="POST" enctype="multipart/form-data" class="row g-3">
+      <div class="col-md-8">
+        <input type="file" name="arquivo" class="form-control" accept=".xls,.xlsx" required>
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-primary w-100">Importar</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

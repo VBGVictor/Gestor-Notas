@@ -1,0 +1,20 @@
+<!-- frontend/templates/nota_detalhe.html -->
+{% extends 'base.html' %}
+
+{% block title %}Nota #{{ nota.id }} – Gestor de Notas{% endblock %}
+
+{% block content %}
+<section class="pt-5 pb-5">
+  <div class="container">
+    <h3 class="mb-3">Detalhes da Nota #{{ nota.id }}</h3>
+    <ul class="list-group mb-4">
+      <li class="list-group-item"><strong>Paciente:</strong> {{ nota.paciente.nome }} ({{ nota.paciente.cpf }})</li>
+      <li class="list-group-item"><strong>Data:</strong> {{ nota.data.strftime('%d/%m/%Y') }}</li>
+      <li class="list-group-item"><strong>Valor:</strong> R$ {{ '%.2f'|format(nota.valor) }}</li>
+      <li class="list-group-item"><strong>Tipo:</strong> {{ 'Receita' if nota.receita else 'Despesa' }}</li>
+      <li class="list-group-item"><strong>Descrição:</strong> {{ nota.descricao }}</li>
+    </ul>
+    <a href="{{ url_for('notas') }}" class="btn btn-secondary">Voltar</a>
+  </div>
+</section>
+{% endblock %}

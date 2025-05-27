@@ -1,0 +1,38 @@
+<!-- frontend/templates/dashboard.html -->
+{% extends 'base.html' %}
+
+{% block title %}Dashboard – Gestor de Notas{% endblock %}
+
+{% block content %}
+<section class="hero-section">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-3 mb-4">
+        <div class="info-box shadow-sm p-3 text-center">
+          <h4>Total de Notas</h4>
+          <p class="display-6">{{ total_notas }}</p>
+        </div>
+      </div>
+      <div class="col-md-3 mb-4">
+        <div class="info-box shadow-sm p-3 text-center">
+          <h4>Receita (R$)</h4>
+          <p class="display-6">{{ receita_total }}</p>
+        </div>
+      </div>
+      <div class="col-md-3 mb-4">
+        <div class="info-box shadow-sm p-3 text-center">
+          <h4>Despesa (R$)</h4>
+          <p class="display-6">{{ despesa_total }}</p>
+        </div>
+      </div>
+      <div class="col-md-3 mb-4">
+        <div class="info-box shadow-sm p-3 text-center">
+          <h4>Lucro (R$)</h4>
+          <p class="display-6">{{ lucro }}</p>
+        </div>
+      </div>
+    </div>
+    <!-- Aqui, futuramente, entraremos com gráficos Chart.js -->
+  </div>
+</section>
+{% endblock %}

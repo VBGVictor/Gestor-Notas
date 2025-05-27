@@ -1,0 +1,46 @@
+<!-- frontend/templates/register.html -->
+{% extends 'base.html' %}
+
+{% block title %}Registrar – Gestor de Notas{% endblock %}
+
+{% block content %}
+<section class="register-section pt-5 pb-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+
+        <div class="card p-4 shadow-sm">
+          <h3 class="card-title text-center mb-4">Criar Nova Conta</h3>
+
+          {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+          {% elif success %}
+            <div class="alert alert-success">{{ success }}</div>
+          {% endif %}
+
+          <form method="POST" class="row g-3">
+            <div class="col-12">
+              <input type="text" name="nome" class="form-control" placeholder="Nome completo" required>
+            </div>
+            <div class="col-12">
+              <input type="email" name="email" class="form-control" placeholder="E-mail" required>
+            </div>
+            <div class="col-12">
+              <input type="password" name="senha" class="form-control" placeholder="Senha" required>
+            </div>
+            <div class="col-12 text-center">
+              <button type="submit" class="btn btn-success px-5">Registrar</button>
+            </div>
+          </form>
+
+          <p class="text-center mt-3">
+            Já tem conta?
+            <a href="{{ url_for('login') }}">Faça login</a>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
