@@ -1,38 +1,54 @@
-<!-- frontend/templates/dashboard.html -->
 {% extends 'base.html' %}
 
 {% block title %}Dashboard – Gestor de Notas{% endblock %}
 
 {% block content %}
-<section class="hero-section">
+<section class="hero-section py-5 bg-light">
   <div class="container">
-    <div class="row">
-      <div class="col-md-3 mb-4">
-        <div class="info-box shadow-sm p-3 text-center">
-          <h4>Total de Notas</h4>
-          <p class="display-6">{{ total_notas }}</p>
+    <h2 class="mb-5 text-center">Resumo Financeiro</h2>
+    <div class="row g-4">
+
+      <div class="col-md-3">
+        <div class="card text-white bg-primary shadow-sm h-100">
+          <div class="card-body text-center">
+            <h5 class="card-title">Total de Notas</h5>
+            <p class="display-6">{{ total_notas }}</p>
+          </div>
         </div>
       </div>
-      <div class="col-md-3 mb-4">
-        <div class="info-box shadow-sm p-3 text-center">
-          <h4>Receita (R$)</h4>
-          <p class="display-6">{{ receita_total }}</p>
+
+      <div class="col-md-3">
+        <div class="card text-white bg-success shadow-sm h-100">
+          <div class="card-body text-center">
+            <h5 class="card-title">Receita (R$)</h5>
+            <p class="display-6">{{ receita_total }}</p>
+          </div>
         </div>
       </div>
-      <div class="col-md-3 mb-4">
-        <div class="info-box shadow-sm p-3 text-center">
-          <h4>Despesa (R$)</h4>
-          <p class="display-6">{{ despesa_total }}</p>
+
+      <div class="col-md-3">
+        <div class="card text-white bg-danger shadow-sm h-100">
+          <div class="card-body text-center">
+            <h5 class="card-title">Despesa (R$)</h5>
+            <p class="display-6">{{ despesa_total }}</p>
+          </div>
         </div>
       </div>
-      <div class="col-md-3 mb-4">
-        <div class="info-box shadow-sm p-3 text-center">
-          <h4>Lucro (R$)</h4>
-          <p class="display-6">{{ lucro }}</p>
+
+      <div class="col-md-3">
+        <div class="card text-white bg-dark shadow-sm h-100">
+          <div class="card-body text-center">
+            <h5 class="card-title">Lucro (R$)</h5>
+            <p class="display-6">{{ lucro }}</p>
+          </div>
         </div>
       </div>
+
     </div>
-    <!-- Aqui, futuramente, entraremos com gráficos Chart.js -->
+
+    <div class="text-center mt-5">
+      <p class="text-muted">Mais gráficos e análises virão em breve.</p>
+    </div>
   </div>
 </section>
 {% endblock %}
