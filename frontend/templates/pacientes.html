@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Lista de Pacientes{% endblock %}
+
+{% block content %}
+<h2>Pacientes</h2>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Nome</th><th>CPF</th><th>CEP</th><th>Profissão</th>
+      <th>Idade</th><th>Valor Sessão</th><th>Status</th><th>Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in pacientes %}
+    <tr class="{{ 'table-secondary' if not p.active }}">
+      <td>{{ p.nome }}</td>
+      <td>{{ p.cpf }}</td>
+      <td>{{ p.cep }}</td>
+      <td>{{ p.profissao or '' }}</td>
+      <td>{{ p.idade or '' }}</td>
+      <td>{{ p.valor_sessao is not none and ('%.2f'|format(p.valor_sessao)) or '' }}</td>
+      <td>{{ 'Ativo' if p.active else 'Inativo' }}</td>
+      <td>
+        <form method="post" action="{{ url_for('registrar_sessao', paciente_id=p.id) }}" class="d-inline">
+          <button class="btn btn-sm btn-outline-success" {% if not p.active %}disabled{% endif %}>
+            + Sessão
+          </button>
+        </form>
+        <form method="post" action="{{ url_for('toggle_paciente', paciente_id=p.id) }}" class="d-inline">
+          <button class="btn btn-sm btn-outline-{{ 'danger' if p.active else 'primary' }}">
+            {{ 'Desativar' if p.active else 'Ativar' }}
+          </button>
+        </form>
+        <a href="{{ url_for('editar_paciente', paciente_id=p.id) }}"
+           class="btn btn-sm btn-outline-primary">Editar</a>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8">Nenhum paciente cadastrado.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

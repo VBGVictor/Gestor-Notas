@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Editar Paciente{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width:700px; padding-bottom:4rem;">
+  <h2 class="mb-4">Editar Paciente</h2>
+  <form method="POST"
+        onsubmit="return confirm('Deseja mesmo alterar estes campos?');">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Nome *</label>
+        <input class="form-control" name="nome" value="{{ paciente.nome }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">CPF *</label>
+        <input class="form-control" name="cpf" value="{{ paciente.cpf }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">CEP *</label>
+        <input class="form-control" name="cep" value="{{ paciente.cep }}" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Idade</label>
+        <input type="number" class="form-control" name="idade"
+               value="{{ paciente.idade or '' }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Profissão</label>
+        <input class="form-control" name="profissao"
+               value="{{ paciente.profissao or '' }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Valor da Sessão</label>
+        <input type="number" step="0.01" class="form-control" name="valor_sessao"
+               value="{{ paciente.valor_sessao is not none and ('%.2f'|format(paciente.valor_sessao)) or '' }}">
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">Endereço</label>
+        <input class="form-control" name="endereco"
+               value="{{ paciente.endereco or '' }}">
+      </div>
+      <div class="col-12 text-end mt-3">
+        <button class="btn btn-primary px-4" type="submit">Gravar</button>
+        <a class="btn btn-secondary px-4" href="{{ url_for('listar_pacientes') }}">Cancelar</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

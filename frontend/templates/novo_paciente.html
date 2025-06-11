@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Novo Paciente{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width: 700px; padding-bottom: 4rem;">
+  <h2 class="mb-4">Novo Paciente</h2>
+  <form method="POST">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Nome *</label>
+        <input class="form-control" name="nome" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">CPF *</label>
+        <input class="form-control" name="cpf" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">CEP *</label>
+        <input class="form-control" name="cep" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Idade</label>
+        <input type="number" class="form-control" name="idade">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Profissão</label>
+        <input class="form-control" name="profissao">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Valor da Sessão</label>
+        <input type="number" step="0.01" class="form-control" name="valor_sessao">
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">Endereço</label>
+        <input class="form-control" name="endereco">
+      </div>
+      <div class="col-12 text-end mt-3">
+        <button class="btn btn-primary px-4" type="submit">Salvar</button>
+        <a class="btn btn-secondary px-4" href="{{ url_for('dashboard') }}">Cancelar</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

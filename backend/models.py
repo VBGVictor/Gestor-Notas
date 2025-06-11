@@ -27,7 +27,13 @@ class Paciente(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(120), nullable=False)
-    cpf = db.Column(db.String(14), unique=True, nullable=True)
+    cpf = db.Column(db.String(14), unique=True, nullable=False)
+    profissao = db.Column(db.String(120), nullable=True)
+    cep = db.Column(db.String(10), nullable=False)
+    endereco = db.Column(db.String(200), nullable=True)
+    idade = db.Column(db.Integer, nullable=True)
+    valor_sessao  = db.Column(db.Float, nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
     notas = db.relationship('Nota', backref='paciente', lazy=True)
 
@@ -45,3 +51,16 @@ class Nota(db.Model):
 
     def __repr__(self):
         return f"<Nota {self.id} - Paciente {self.paciente_id}>"
+
+
+class Transacao(db.Model):
+    __tablename__ = 'transacoes'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    nome       = db.Column(db.String(120), nullable=False)
+    tipo       = db.Column(db.String(10), nullable=False) 
+    observacao = db.Column(db.Text, nullable=True)
+    valor      = db.Column(db.Float, nullable=False)
+
+    def __repr__(self):
+        return f"<Transacao {self.tipo} {self.nome}: {self.valor}>"

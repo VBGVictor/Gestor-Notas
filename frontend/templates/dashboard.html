@@ -1,54 +1,107 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard – Gestor de Notas{% endblock %}
+{% block title %}Dashboard – Clínica{% endblock %}
 
 {% block content %}
-<section class="hero-section py-5 bg-light">
+
+<section class="section">
   <div class="container">
-    <h2 class="mb-5 text-center">Resumo Financeiro</h2>
-    <div class="row g-4">
 
-      <div class="col-md-3">
-        <div class="card text-white bg-primary shadow-sm h-100">
+    <!-- Título -->
+    <div class="section-title text-center mb-5">
+      <h2 class="fw-bold">Painel Geral</h2>
+      <p class="text-muted">Resumo dos atendimentos e informações financeiras</p>
+    </div>
+
+    <!-- Linha de Cards -->
+    <div class="row gy-4">
+
+      <!-- Pacientes -->
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100">
           <div class="card-body text-center">
-            <h5 class="card-title">Total de Notas</h5>
-            <p class="display-6">{{ total_notas }}</p>
+            <h5 class="card-title mb-3">Total de Pacientes</h5>
+            <h2 class="text-primary fw-bold">{{ total_pacientes }}</h2>
           </div>
         </div>
       </div>
 
-      <div class="col-md-3">
-        <div class="card text-white bg-success shadow-sm h-100">
+      <!-- Valor médio por sessão -->
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100">
           <div class="card-body text-center">
-            <h5 class="card-title">Receita (R$)</h5>
-            <p class="display-6">{{ receita_total }}</p>
+            <h5 class="card-title mb-3">Valor Médio Sessão</h5>
+            <h2 class="text-success fw-bold">R$ {{ valor_medio_sessao }}</h2>
           </div>
         </div>
       </div>
 
-      <div class="col-md-3">
-        <div class="card text-white bg-danger shadow-sm h-100">
+      <!-- Notas Emitidas -->
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100">
           <div class="card-body text-center">
-            <h5 class="card-title">Despesa (R$)</h5>
-            <p class="display-6">{{ despesa_total }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-md-3">
-        <div class="card text-white bg-dark shadow-sm h-100">
-          <div class="card-body text-center">
-            <h5 class="card-title">Lucro (R$)</h5>
-            <p class="display-6">{{ lucro }}</p>
+            <h5 class="card-title mb-3">Notas Emitidas</h5>
+            <h2 class="text-secondary fw-bold">{{ total_notas }}</h2>
           </div>
         </div>
       </div>
 
     </div>
 
-    <div class="text-center mt-5">
-      <p class="text-muted">Mais gráficos e análises virão em breve.</p>
+    <!-- Espaçamento -->
+    <div class="my-4"></div>
+
+    <!-- Linha Financeira -->
+    <div class="row gy-4">
+
+      <!-- Receita -->
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100 bg-light">
+          <div class="card-body text-center">
+            <h5 class="card-title mb-3">Receitas</h5>
+            <h2 class="text-success fw-bold">R$ {{ receita_total }}</h2>
+          </div>
+        </div>
+      </div>
+
+      <!-- Despesa -->
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100 bg-light">
+          <div class="card-body text-center">
+            <h5 class="card-title mb-3">Despesas</h5>
+            <h2 class="text-danger fw-bold">R$ {{ despesa_total }}</h2>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lucro -->
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100 bg-light">
+          <div class="card-body text-center">
+            <h5 class="card-title mb-3">Lucro</h5>
+            <h2 class="text-dark fw-bold">R$ {{ lucro }}</h2>
+          </div>
+        </div>
+      </div>
+
     </div>
+
+    <!-- Botões -->
+    <div class="row mt-5">
+      <div class="col text-center">
+        <a href="{{ url_for('novo_paciente') }}" class="btn btn-primary mx-2">
+          <i class="bi bi-person-plus"></i> Novo Paciente
+        </a>
+        <a href="{{ url_for('listar_pacientes') }}" class="btn btn-outline-secondary mx-2">
+          <i class="bi bi-people-fill"></i> Ver Pacientes
+        </a>
+        <a href="{{ url_for('transacoes') }}" class="btn btn-success mx-2">
+          <i class="bi bi-cash-stack"></i> Finanças
+        </a>
+      </div>
+    </div>
+
   </div>
 </section>
+
 {% endblock %}

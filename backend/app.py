@@ -9,6 +9,9 @@ from functools import wraps
 from urllib.parse import quote_plus
 from models import db, Usuario, Paciente, Nota
 from dotenv import load_dotenv
+from flask_migrate import Migrate
+from flask import abort
+from models import Transacao
 
 load_dotenv()
 
@@ -63,8 +66,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Inicializa o SQLAlchemy e cria as tabelas
 # ————————————————————————————————————————————————
 db.init_app(app)
-with app.app_context():
-    db.create_all()
+migrate = Migrate(app, db)
 
 # ————————————————————————————————————————————————
 # Rotas
@@ -88,7 +90,14 @@ def login():
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
+@login_required
 def register():
+    # opcional: verificar se o usuário é admin
+    usuario_logado = Usuario.query.get(session['user_id'])
+    if not usuario_logado.email == 'admin@admin.com':
+        flash('Apenas o administrador pode registrar novos usuários.', 'danger')
+        return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
         nome  = request.form.get('nome')
         email = request.form.get('email')
@@ -102,8 +111,8 @@ def register():
             novo.set_senha(senha)
             db.session.add(novo)
             db.session.commit()
-            flash('Registro realizado! Faça login.', 'success')
-            return redirect(url_for('login'))
+            flash('Usuário registrado com sucesso.', 'success')
+            return redirect(url_for('dashboard'))
     return render_template('register.html')
 
 @app.route('/logout')
@@ -116,18 +125,28 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    total_notas  = Nota.query.count()
-    soma_valores = db.session.query(db.func.sum(Nota.valor)).scalar() or 0.0
-    receita_total = soma_valores
-    despesa_total = 0.0  # ajuste quando tiver campo de tipo
-    lucro         = receita_total - despesa_total
-    return render_template(
-        'dashboard.html',
-        total_notas=f"{total_notas}",
+    # Pacientes ativos
+    ativos = Paciente.query.filter_by(active=True).all()
+    total_pacientes    = len(ativos)
+    soma_sessoes       = sum(p.valor_sessao or 0.0 for p in ativos)
+    valor_medio_sessao = (soma_sessoes / total_pacientes) if total_pacientes else 0.0
+
+    total_notas = Nota.query.count()
+
+    from models import Transacao
+    receita_total = db.session.query(db.func.sum(Transacao.valor)).filter_by(tipo='receita').scalar() or 0.0
+    despesa_total = db.session.query(db.func.sum(Transacao.valor)).filter_by(tipo='despesa').scalar() or 0.0
+    lucro = receita_total - despesa_total
+
+    return render_template('dashboard.html',
+        total_pacientes=total_pacientes,
+        valor_medio_sessao=f"{valor_medio_sessao:.2f}",
+        total_notas=total_notas,
         receita_total=f"{receita_total:.2f}",
         despesa_total=f"{despesa_total:.2f}",
         lucro=f"{lucro:.2f}"
     )
+
 
 @app.route('/notas')
 @login_required
@@ -140,6 +159,156 @@ def notas():
 def nota_detalhe(nota_id):
     nota = Nota.query.get_or_404(nota_id)
     return render_template('nota_detalhe.html', nota=nota)
+
+@app.route('/pacientes/novo', methods=['GET', 'POST'])
+@login_required
+def novo_paciente():
+    if request.method == 'POST':
+        nome      = request.form.get('nome')
+        cpf       = request.form.get('cpf')
+        profissao = request.form.get('profissao')
+        cep       = request.form.get('cep')
+        endereco  = request.form.get('endereco')
+        idade     = request.form.get('idade')
+        valor_sessao = request.form.get('valor_sessao')
+
+        if not (nome and cpf and cep and valor_sessao):
+            flash('Nome, CPF, CEP e Valor da Sessão são obrigatórios.', 'warning')
+        else:
+            # cria paciente
+            p = Paciente(
+                nome=nome, cpf=cpf, profissao=profissao or None,
+                cep=cep, endereco=endereco or None,
+                idade=int(idade) if idade else None,
+                valor_sessao=float(valor_sessao)
+            )
+            db.session.add(p)
+            db.session.commit()
+
+            # registra receita única inicial
+            t = Transacao(
+                nome=f"Receita inicial — {p.nome}",
+                tipo='receita',
+                observacao='Receita única ao cadastrar paciente',
+                valor=float(valor_sessao)
+            )
+            db.session.add(t)
+            db.session.commit()
+
+            flash('Paciente e receita inicial cadastrados com sucesso!', 'success')
+            return redirect(url_for('listar_pacientes'))
+    return render_template('novo_paciente.html')
+
+@app.route('/pacientes')
+@login_required
+def listar_pacientes():
+    pacientes = Paciente.query.all()
+    return render_template('pacientes.html', pacientes=pacientes)
+
+# Mostrar formulário de edição
+@app.route('/pacientes/<int:paciente_id>/edit', methods=['GET'])
+@login_required
+def editar_paciente(paciente_id):
+    p = Paciente.query.get_or_404(paciente_id)
+    return render_template('editar_paciente.html', paciente=p)
+
+# Processar edição
+@app.route('/pacientes/<int:paciente_id>/edit', methods=['POST'])
+@login_required
+def atualizar_paciente(paciente_id):
+    p = Paciente.query.get_or_404(paciente_id)
+    # captura os dados do form
+    nome         = request.form.get('nome')
+    cpf          = request.form.get('cpf')
+    profissao    = request.form.get('profissao')
+    cep          = request.form.get('cep')
+    endereco     = request.form.get('endereco')
+    idade        = request.form.get('idade')
+    valor_sessao = request.form.get('valor_sessao')
+
+    # valida obrigatórios
+    if not (nome and cpf and cep):
+        flash('Nome, CPF e CEP são obrigatórios.', 'warning')
+        return redirect(url_for('editar_paciente', paciente_id=p.id))
+
+    # atualiza campos
+    p.nome         = nome
+    p.cpf          = cpf
+    p.profissao    = profissao or None
+    p.cep          = cep
+    p.endereco     = endereco or None
+    p.idade        = int(idade) if idade else None
+    p.valor_sessao = float(valor_sessao) if valor_sessao else None
+
+    db.session.commit()
+    flash('Paciente atualizado com sucesso!', 'success')
+    return redirect(url_for('listar_pacientes'))
+
+@app.route('/pacientes/<int:paciente_id>/sessao', methods=['POST'])
+@login_required
+def registrar_sessao(paciente_id):
+    p = Paciente.query.get_or_404(paciente_id)
+    if not p.active:
+        flash('Não é possível registrar sessão para paciente inativo.', 'warning')
+    else:
+        t = Transacao(
+            nome=f"Sessão — {p.nome}",
+            tipo='receita',
+            observacao='Sessão avulsa registrada manualmente',
+            valor=p.valor_sessao or 0.0
+        )
+        db.session.add(t)
+        db.session.commit()
+        flash('Sessão registrada como receita.', 'success')
+    return redirect(url_for('listar_pacientes'))
+
+@app.route('/pacientes/<int:paciente_id>/toggle', methods=['POST'])
+@login_required
+def toggle_paciente(paciente_id):
+    p = Paciente.query.get_or_404(paciente_id)
+    p.active = not p.active
+    db.session.commit()
+    status = 'ativado' if p.active else 'desativado'
+    flash(f'Paciente {status} com sucesso.', 'info')
+    return redirect(url_for('listar_pacientes'))
+
+@app.route('/transacoes')
+@login_required
+def transacoes():
+    
+    receitas = Transacao.query.filter_by(tipo='receita')\
+                  .order_by(Transacao.id.desc()).all()
+    despesas = Transacao.query.filter_by(tipo='despesa')\
+                  .order_by(Transacao.id.desc()).all()
+    return render_template('transacoes.html',
+                           receitas=receitas,
+                           despesas=despesas)
+
+
+
+@app.route('/transacoes/novo', methods=['GET', 'POST'])
+@login_required
+def novo_transacao():
+    if request.method == 'POST':
+        nome       = request.form.get('nome')
+        tipo       = request.form.get('tipo')
+        observacao = request.form.get('observacao')
+        valor      = request.form.get('valor')
+
+        if not (nome and tipo and valor):
+            flash('Nome, tipo e valor são obrigatórios.', 'warning')
+        else:
+            t = Transacao(
+                nome=nome,
+                tipo=tipo,
+                observacao=observacao or None,
+                valor=float(valor)
+            )
+            db.session.add(t)
+            db.session.commit()
+            flash('Transação registrada com sucesso!', 'success')
+            return redirect(url_for('listar_transacoes'))
+    return render_template('novo_transacao.html')
 
 @app.route('/importar', methods=['GET', 'POST'])
 @login_required
