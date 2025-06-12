@@ -61,6 +61,7 @@ class Transacao(db.Model):
     tipo       = db.Column(db.String(10), nullable=False) 
     observacao = db.Column(db.Text, nullable=True)
     valor      = db.Column(db.Float, nullable=False)
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<Transacao {self.tipo} {self.nome}: {self.valor}>"

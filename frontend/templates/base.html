@@ -4,17 +4,16 @@
   <meta charset="UTF-8">
   <title>{% block title %}Gestor de Notas{% endblock %}</title>
 
-  <!-- Bootstrap, FontAwesome etc. do Medilife -->
+  <!-- Bootstrap e estilo do Medilife -->
   <link rel="stylesheet" href="{{ url_for('static', filename='medilife/css/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='medilife/css/style.css') }}">
-  <!-- fonts e ícones -->
   <link rel="stylesheet" href="{{ url_for('static', filename='medilife/css/fontawesome-all.min.css') }}">
-  
-  <!-- seu CSS adicional -->
+
+  <!-- Seu CSS adicional -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  <!-- Navbar do Medilife com controle de acesso -->
+  <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-light bg-light">
     <div class="container-fluid">
       <a class="navbar-brand" href="{% if session.get('user_id') %}{{ url_for('dashboard') }}{% else %}{{ url_for('login') }}{% endif %}">Gestor de Notas</a>
@@ -36,15 +35,16 @@
       </div>
     </div>
   </nav>
-  
+
+  <!-- Conteúdo principal -->
   <main class="container mt-4">
     {% block content %}{% endblock %}
   </main>
 
-  <!-- Footer do Medilife -->
+  <!-- Rodapé -->
   {% include 'partials/footer.html' %}
 
-  <!-- Scripts do Medilife -->
+  <!-- Scripts -->
   <script src="{{ url_for('static', filename='medilife/js/jquery.min.js') }}"></script>
   <script src="{{ url_for('static', filename='medilife/js/bootstrap.bundle.min.js') }}"></script>
   <script src="{{ url_for('static', filename='medilife/js/main.js') }}"></script>

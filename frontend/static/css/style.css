@@ -1,32 +1,63 @@
 /* frontend/static/css/style.css */
 
-body {
-  font-family: sans-serif;
-  margin: 0; padding: 0;
-  background: #f5f5f5;
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', sans-serif;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(160deg, #6CEA8E, #10EB95, #106CEB, #10B1EB, #10EBDF, #9DEBE6);
+  background-size: 600% 600%;
+  animation: gradientBackground 20s ease infinite;
+  color: #1a1a1a;
+}
+
+/* Gradiente animado para dar vida */
+@keyframes gradientBackground {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 header {
-  background: #2c3e50;
+  background: rgba(0, 0, 0, 0.6);
   color: white;
   padding: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 header nav a {
-  color: white;
+  color: #ffffff;
   margin-right: 1rem;
   text-decoration: none;
+  transition: color 0.2s;
+}
+
+header nav a:hover {
+  color: #9DEBE6;
 }
 
 main {
+  flex: 1;
   padding: 2rem;
+  backdrop-filter: blur(6px);
+  background-color: rgba(255, 255, 255, 0.85);
+  margin: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
 }
 
 footer {
   text-align: center;
   padding: 1rem;
-  background: #ecf0f1;
-  position: fixed;
-  bottom: 0;
-  width: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 -1px 5px rgba(0, 0, 0, 0.1);
+  font-size: 0.9rem;
+  color: #333;
 }

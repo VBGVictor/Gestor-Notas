@@ -11,7 +11,10 @@ from models import db, Usuario, Paciente, Nota
 from dotenv import load_dotenv
 from flask_migrate import Migrate
 from flask import abort
-from models import Transacao
+from flask import request, render_template, jsonify
+from datetime import datetime, timedelta
+from models import Transacao  
+from sqlalchemy import extract
 
 load_dotenv()
 
@@ -147,7 +150,6 @@ def dashboard():
         lucro=f"{lucro:.2f}"
     )
 
-
 @app.route('/notas')
 @login_required
 def notas():
@@ -187,7 +189,7 @@ def novo_paciente():
 
             # registra receita única inicial
             t = Transacao(
-                nome=f"Receita inicial — {p.nome}",
+                nome=f"{p.nome}",
                 tipo='receita',
                 observacao='Receita única ao cadastrar paciente',
                 valor=float(valor_sessao)
@@ -252,7 +254,7 @@ def registrar_sessao(paciente_id):
         flash('Não é possível registrar sessão para paciente inativo.', 'warning')
     else:
         t = Transacao(
-            nome=f"Sessão — {p.nome}",
+            nome=f"{p.nome}",
             tipo='receita',
             observacao='Sessão avulsa registrada manualmente',
             valor=p.valor_sessao or 0.0
@@ -275,40 +277,152 @@ def toggle_paciente(paciente_id):
 @app.route('/transacoes')
 @login_required
 def transacoes():
-    
-    receitas = Transacao.query.filter_by(tipo='receita')\
-                  .order_by(Transacao.id.desc()).all()
-    despesas = Transacao.query.filter_by(tipo='despesa')\
-                  .order_by(Transacao.id.desc()).all()
-    return render_template('transacoes.html',
-                           receitas=receitas,
-                           despesas=despesas)
+    periodo = request.args.get('periodo', '') 
+    ordenar_por = request.args.get('ordenar_por', 'data_criacao')
+    ordem = request.args.get('ordem', 'desc')
 
+    hoje = datetime.today()
+    receitas_query = Transacao.query.filter_by(tipo='receita')
+    despesas_query = Transacao.query.filter_by(tipo='despesa')
 
+    if periodo == 'hoje':
+        receitas_query = receitas_query.filter(
+            extract('day', Transacao.data_criacao) == hoje.day,
+            extract('month', Transacao.data_criacao) == hoje.month,
+            extract('year', Transacao.data_criacao) == hoje.year)
+        despesas_query = despesas_query.filter(
+            extract('day', Transacao.data_criacao) == hoje.day,
+            extract('month', Transacao.data_criacao) == hoje.month,
+            extract('year', Transacao.data_criacao) == hoje.year)
+    elif periodo == 'semana':
+        inicio_semana = hoje - timedelta(days=hoje.weekday())
+        receitas_query = receitas_query.filter(Transacao.data_criacao >= inicio_semana)
+        despesas_query = despesas_query.filter(Transacao.data_criacao >= inicio_semana)
+    elif periodo == 'mes':
+        receitas_query = receitas_query.filter(
+            extract('month', Transacao.data_criacao) == hoje.month,
+            extract('year', Transacao.data_criacao) == hoje.year)
+        despesas_query = despesas_query.filter(
+            extract('month', Transacao.data_criacao) == hoje.month,
+            extract('year', Transacao.data_criacao) == hoje.year)
+    elif periodo == '30':
+        inicio = hoje - timedelta(days=30)
+        receitas_query = receitas_query.filter(Transacao.data_criacao >= inicio)
+        despesas_query = despesas_query.filter(Transacao.data_criacao >= inicio)
+    elif periodo == '60':
+        inicio = hoje - timedelta(days=60)
+        receitas_query = receitas_query.filter(Transacao.data_criacao >= inicio)
+        despesas_query = despesas_query.filter(Transacao.data_criacao >= inicio)
+
+    colunas_validas = {'nome', 'observacao', 'data_criacao', 'valor'}
+    if ordenar_por not in colunas_validas:
+        ordenar_por = 'data_criacao'
+
+    ordenar_campo = getattr(Transacao, ordenar_por)
+    if ordem == 'asc':
+        receitas_query = receitas_query.order_by(ordenar_campo.asc())
+        despesas_query = despesas_query.order_by(ordenar_campo.asc())
+    else:
+        receitas_query = receitas_query.order_by(ordenar_campo.desc())
+        despesas_query = despesas_query.order_by(ordenar_campo.desc())
+
+    receitas = receitas_query.all()
+    despesas = despesas_query.all()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return render_template('partials/tabela_transacoes.html',
+                               receitas=receitas,
+                               despesas=despesas,
+                               ordenar_por=ordenar_por,
+                               ordem=ordem)
+    else:
+     return render_template(
+        'transacoes.html',
+        receitas=receitas,
+        despesas=despesas,
+        filtro_periodo=periodo,
+        ordenar_por=ordenar_por,
+        ordem=ordem
+     )
 
 @app.route('/transacoes/novo', methods=['GET', 'POST'])
 @login_required
 def novo_transacao():
     if request.method == 'POST':
+        nome = request.form.get('nome')
+        observacao = request.form.get('observacao')
+        valor = request.form.get('valor')
+        tipo = request.form.get('tipo')  
+
+        if not nome or not valor or not tipo:
+            flash('Nome, valor e tipo são obrigatórios.', 'danger')
+            return redirect(url_for('novo_transacao'))
+
+        try:
+            valor = float(valor.replace(',', '.'))
+        except ValueError:
+            flash('Valor inválido.', 'danger')
+            return redirect(url_for('novo_transacao'))
+
+        nova = Transacao(nome=nome, observacao=observacao, valor=valor, tipo=tipo, data_criacao=datetime.now())
+
+        flash('Transação criada com sucesso!', 'success')
+        return redirect(url_for('transacoes'))
+
+    return render_template('novo_transacao.html')
+
+@app.route('/transacoes/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
+def editar_transacao(id):
+    t = Transacao.query.get_or_404(id)
+
+    if request.method == 'POST':
         nome       = request.form.get('nome')
         tipo       = request.form.get('tipo')
         observacao = request.form.get('observacao')
         valor      = request.form.get('valor')
+        data_str   = request.form.get('data') 
 
-        if not (nome and tipo and valor):
-            flash('Nome, tipo e valor são obrigatórios.', 'warning')
+        if not (nome and tipo and valor and data_str):
+            flash('Nome, tipo, valor e data são obrigatórios.', 'warning')
         else:
-            t = Transacao(
-                nome=nome,
-                tipo=tipo,
-                observacao=observacao or None,
-                valor=float(valor)
-            )
-            db.session.add(t)
+            t.nome = nome
+            t.tipo = tipo
+            t.observacao = observacao or None
+            t.valor = float(valor)
+
+            try:
+                data_nova = datetime.strptime(data_str, '%Y-%m-%d')
+               
+                hora =  0
+                minuto =  0
+
+                t.data_criacao = datetime(
+                    data_nova.year,
+                    data_nova.month,
+                    data_nova.day,
+                    hora,
+                    minuto
+                )
+            except ValueError:
+                flash('Data inválida.', 'warning')
+                return render_template('editar_transacao.html', transacao=t)
+
             db.session.commit()
-            flash('Transação registrada com sucesso!', 'success')
-            return redirect(url_for('listar_transacoes'))
-    return render_template('novo_transacao.html')
+            flash('Transação atualizada com sucesso!', 'success')
+            return redirect(url_for('transacoes'))
+
+    return render_template('editar_transacao.html', transacao=t)
+
+
+@app.route('/transacoes/excluir/<int:id>', methods=['POST'])
+@login_required
+def excluir_transacao(id):
+    t = Transacao.query.get_or_404(id)
+    db.session.delete(t)
+    db.session.commit()
+    flash('Transação excluída com sucesso!', 'success')
+    return redirect(url_for('transacoes'))
 
 @app.route('/importar', methods=['GET', 'POST'])
 @login_required
