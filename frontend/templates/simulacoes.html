@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Simulações – Gestor de Notas{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-4">
+  <h2>Simulações</h2>
+  <a href="{{ url_for('nova_simulacao') }}" class="btn btn-success">+ Nova</a>
+</div>
+<table class="table">
+  <thead><tr>
+    <th>Nome</th><th>Criada em</th><th>Ações</th>
+  </tr></thead>
+  <tbody>
+    {% for s in simulacoes %}
+    <tr>
+      <td><a href="{{ url_for('detalhe_simulacao', id=s.id) }}">{{ s.nome }}</a></td>
+      <td>{{ s.created_at.strftime('%d/%m/%Y') }}</td>
+      <td>
+        <a href="{{ url_for('editar_simulacao', id=s.id) }}" class="btn btn-sm btn-warning">✏️</a>
+        <form action="{{ url_for('delete_simulacao', id=s.id) }}" method="POST" style="display:inline" onsubmit="return confirm('Confirma?')">
+          <button class="btn btn-sm btn-danger">🗑️</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}Simulação – {{ sim.nome }}{% endblock %}
+
+{% block content %}
+<h2>{{ sim.nome }}</h2>
+<canvas id="chartSim" width="400" height="200"></canvas>
+<hr>
+
+<!-- Carrega os dados em um script separado -->
+<script id="chart-data" type="application/json">
+  {
+    "labels": {{ labels | tojson | safe }},
+    "dataReceitaProjetada": {{ data_receita_projetada | tojson | safe }},
+    "dataDespesasTotais": {{ data_despesas_totais | tojson | safe }},
+    "dataResultadoLiquido": {{ data_resultado_liquido | tojson | safe }}
+  }
+</script>
+
+<h3>Detalhamento da Projeção</h3>
+<table class="table table-striped table-hover">
+    <thead>
+        <tr>
+            <th>Período</th>
+            <th>Variação Pacientes</th>
+            <th>Receita Mensal Projetada (R$)</th>
+            <th>Receita Semanal Estimada (R$)</th>
+            <th>Despesa Total (R$)</th>
+            <th>Resultado Líquido (R$)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if dados_tabela_projecao %}
+            {% for item_projecao in dados_tabela_projecao %}
+            <tr>
+                <td>{{ item_projecao.mes }}</td>
+                <td>{{ '%+d'|format(item_projecao.delta_pacientes|int) if item_projecao.delta_pacientes != 0 else '-' }}</td>
+                <td>{{ "%.2f"|format(item_projecao.mensal|float) }}</td>
+                <td>{{ "%.2f"|format(item_projecao.semanal_estimada|float) }}</td>
+                <td>{{ "%.2f"|format(item_projecao.despesa_total_mes|float) }}</td>
+                <td class="{{ 'text-success' if item_projecao.resultado_liquido_mes >= 0 else 'text-danger' }}">
+                    {{ "%.2f"|format(item_projecao.resultado_liquido_mes|float) }}
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr><td colspan="3">Nenhum dado de projeção disponível.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Carrega os dados do script JSON embedado
+  const chartData = JSON.parse(document.getElementById('chart-data').textContent);
+  const ctx = document.getElementById('chartSim').getContext('2d');
+
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: chartData.labels,
+      datasets: [
+        {
+            label: 'Receita Projetada',
+            data: chartData.dataReceitaProjetada,
+            borderColor: 'rgba(75, 192, 192, 1)', // Azul/Verde água
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            fill: false, // Pode ser true se quiser área preenchida
+            tension: 0.1
+        },
+        {
+            label: 'Despesa Total',
+            data: chartData.dataDespesasTotais,
+            borderColor: 'rgba(255, 99, 132, 1)', // Vermelho
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            fill: false,
+            tension: 0.1
+        },
+        {
+            label: 'Resultado Líquido',
+            data: chartData.dataResultadoLiquido,
+            borderColor: 'rgba(75, 181, 67, 1)', // Verde
+            backgroundColor: 'rgba(75, 181, 67, 0.2)',
+            fill: false,
+            tension: 0.1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { 
+          beginAtZero: true, // Começa o eixo Y em zero
+          title: { 
+            display: true, 
+            text: 'Receita (R$)' // Título do eixo Y
+          },
+          ticks: {
+            // Formata os valores do eixo Y como moeda brasileira
+            callback: function(value, index, values) {
+              return 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+          }
+        },
+        x: {
+          title: { 
+            display: true, 
+            text: 'Mês da Projeção' // Título do eixo X
+          }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              let label = context.dataset.label || '';
+              if (label) { label += ': '; }
+              if (context.parsed.y !== null) {
+                label += 'R$ ' + context.parsed.y.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              }
+              return label;
+            }
+          }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}

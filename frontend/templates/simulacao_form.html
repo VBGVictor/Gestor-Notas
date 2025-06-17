@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}{{ simulacao and simulacao.id and 'Editar' or 'Nova' }} Simulação{% endblock %}
+
+{% block content %}
+<h2>{{ simulacao and simulacao.id and 'Editar Simulação: ' ~ simulacao.nome or 'Nova Simulação' }}</h2>
+
+<form method="POST">
+    <div class="mb-3">
+        <label for="nome_simulacao" class="form-label">Nome da Simulação</label>
+        <input type="text" class="form-control" id="nome_simulacao" name="nome_simulacao"
+               value="{{ simulacao.nome if simulacao else request.form.get('nome_simulacao', '') }}" required>
+    </div>
+
+    <hr>
+    <h4>Itens da Simulação (Base de Pacientes Iniciais)</h4>
+    <p class="text-muted small">Preencha a quantidade de pacientes e o valor médio da sessão para cada grupo/tipo de atendimento que compõe sua base atual.</p>
+
+    {% for i in range(1, 5) %} <!-- Loop para 4 possíveis itens/grupos -->
+    <div class="row g-3 mb-3 align-items-end">
+        <div class="col-md-1">
+            <label class="form-label fw-bold">Item {{i}}</label>
+        </div>
+        <div class="col-md-5">
+            <label for="pacientes_{{i}}" class="form-label">Nº Pacientes</label>
+            {# Tenta obter o item atual da simulação existente #}
+            {% set item_atual = (simulacao.itens[loop.index0] if simulacao and simulacao.itens and loop.index0 < simulacao.itens|length else none) %}
+            {# Prioriza o valor do formulário (em caso de erro de validação), depois o valor do BD, depois vazio #}
+            <input type="number" class="form-control" name="pacientes_{{i}}" id="pacientes_{{i}}"
+                   placeholder="Qtde"
+                   value="{{ request.form.get('pacientes_' ~ i|string) if request.form.get('pacientes_' ~ i|string) is not none else (item_atual.pacientes if item_atual else '') }}">
+        </div>
+        <div class="col-md-6">
+            <label for="valor_{{i}}" class="form-label">Valor Sessão (R$)</label>
+            {# Lógica para preencher o valor da sessão, priorizando o formulário, depois o BD formatado, depois vazio #}
+            {% set valor_item_form = request.form.get('valor_' ~ i|string) %}
+            {% set valor_item_db_formatado = '' %}
+            {% if item_atual and item_atual.valor_sessao is not none %}
+                {% set valor_item_db_formatado = "%.2f"|format(item_atual.valor_sessao|float)|replace('.', ',') %}
+            {% endif %}
+            <input type="text" class="form-control" name="valor_{{i}}" id="valor_{{i}}"
+                   placeholder="Ex: 170,00"
+                   value="{{ valor_item_form if valor_item_form is not none else valor_item_db_formatado }}">
+        </div>
+    </div>
+    {% endfor %}
+
+    <hr>
+    <h4>Despesas Mensais</h4>
+    <p class="text-muted small">Informe o valor total aproximado das despesas mensais fixas ou recorrentes que impactam o resultado da simulação.</p>
+    <div class="mb-3">
+        <label for="despesa_mensal_fixa" class="form-label">Despesa Mensal Total (R$)</label>
+        {% set despesa_form = request.form.get('despesa_mensal_fixa') %}
+        {% set despesa_db_formatado = '' %}
+        {% if simulacao and simulacao.despesa_mensal_fixa is not none %}
+            {% set despesa_db_formatado = "%.2f"|format(simulacao.despesa_mensal_fixa|float)|replace('.', ',') %}
+        {% endif %}
+        <input type="text" class="form-control" id="despesa_mensal_fixa" name="despesa_mensal_fixa"
+               placeholder="Ex: 2500,50"
+               value="{{ despesa_form if despesa_form is not none else despesa_db_formatado }}">
+    </div>
+    <hr>
+    <h4>Eventos Futuros (Próximos 6 meses)</h4>
+    <p class="text-muted small">Indique a variação (delta) no número total de pacientes esperada para cada mês. Use números positivos para aumento e negativos para diminuição.</p>
+
+    {% for m in range(6) %} <!-- Loop para 6 meses de projeção -->
+    <div class="mb-3">
+        <label for="evento_{{m}}" class="form-label">Mês {{m+1}} - Variação de Pacientes (Delta)</label>
+        {# Tenta obter o evento atual do dicionário de eventos #}
+        {% set evento_atual = eventos_dict.get(m) %}
+        {# Prioriza o valor do formulário, depois o valor do BD, depois vazio #}
+        <input type="number" class="form-control" name="evento_{{m}}" id="evento_{{m}}"
+               placeholder="Ex: +5 ou -2"
+               value="{{ request.form.get('evento_' ~ m|string) if request.form.get('evento_' ~ m|string) is not none else (evento_atual.delta if evento_atual else '') }}">
+    </div>
+    {% endfor %}
+
+    <hr>
+    <button type="submit" class="btn btn-primary">
+        <i class="fas fa-save"></i> {{ simulacao and simulacao.id and 'Salvar Alterações' or 'Criar e Continuar Editando' }}
+    </button>
+    <a href="{{ url_for('lista_simulacoes') }}" class="btn btn-secondary">
+        <i class="fas fa-times"></i> Cancelar
+    </a>
+    {% if simulacao and simulacao.id %}
+        <a href="{{ url_for('detalhe_simulacao', id=simulacao.id) }}" class="btn btn-info">
+            <i class="fas fa-chart-line"></i> Ver Detalhes da Simulação
+        </a>
+    {% endif %}
+</form>
+{% endblock %}

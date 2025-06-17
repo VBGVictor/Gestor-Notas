@@ -1,22 +1,31 @@
 # backend/app.py
-
+import sys
 import os
+
+# Adiciona o diretório raiz do projeto (Site) no sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Carrega variáveis de ambiente antes de qualquer coisa
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import (
     Flask, render_template, redirect, url_for,
-    session, request, flash, abort
+    session, request, flash, abort, jsonify
 )
 from functools import wraps
-from urllib.parse import quote_plus
-from models import db, Usuario, Paciente, Nota
-from dotenv import load_dotenv
-from flask_migrate import Migrate
-from flask import abort
-from flask import request, render_template, jsonify
 from datetime import datetime, timedelta
-from models import Transacao  
+from urllib.parse import quote_plus
+from flask_migrate import Migrate
 from sqlalchemy import extract
 
-load_dotenv()
+# Import absoluto das models
+from backend.models import (
+     Usuario, Paciente, Nota,
+    Transacao, Simulacao, SimulacaoItem, SimulacaoEvento
+)
+from backend.db import db
+
 
 # ————————————————————————————————————————————————
 # Helper decorator para proteger rotas que exigem login
@@ -136,7 +145,6 @@ def dashboard():
 
     total_notas = Nota.query.count()
 
-    from models import Transacao
     receita_total = db.session.query(db.func.sum(Transacao.valor)).filter_by(tipo='receita').scalar() or 0.0
     despesa_total = db.session.query(db.func.sum(Transacao.valor)).filter_by(tipo='despesa').scalar() or 0.0
     lucro = receita_total - despesa_total
@@ -365,6 +373,7 @@ def novo_transacao():
             return redirect(url_for('novo_transacao'))
 
         nova = Transacao(nome=nome, observacao=observacao, valor=valor, tipo=tipo, data_criacao=datetime.now())
+        db.session.add(nova) # Adiciona a nova transação à sessão
 
         flash('Transação criada com sucesso!', 'success')
         return redirect(url_for('transacoes'))
@@ -413,6 +422,197 @@ def editar_transacao(id):
             return redirect(url_for('transacoes'))
 
     return render_template('editar_transacao.html', transacao=t)
+
+# LISTA
+@app.route('/simulacoes')
+@login_required
+def lista_simulacoes():
+    sims = Simulacao.query.order_by(Simulacao.created_at.desc()).all()
+    return render_template('simulacoes.html', simulacoes=sims)
+
+# NOVA
+@app.route('/simulacoes/novo', methods=['GET','POST'])
+@login_required
+def nova_simulacao():
+    if request.method=='POST':
+        nome = request.form.get('nome_simulacao') # Usar o mesmo nome de campo do form de edição
+        if not nome:
+            flash('O nome da simulação é obrigatório.', 'warning')
+            # Passar um eventos_dict vazio para consistência com a edição
+            return render_template('simulacao_form.html', simulacao=None, eventos_dict={})
+
+        sim = Simulacao(nome=nome)
+        db.session.add(sim)
+        db.session.commit()
+        flash('Simulação criada. Agora adicione os itens e eventos.', 'info')
+        return redirect(url_for('editar_simulacao', id=sim.id))
+    # Para GET, passar um eventos_dict vazio
+    return render_template('simulacao_form.html', simulacao=None, eventos_dict={})
+
+# EDITAR
+@app.route('/simulacoes/<int:id>/edit', methods=['GET','POST'])
+@login_required
+def editar_simulacao(id):
+    sim = Simulacao.query.get_or_404(id)
+
+    if request.method=='POST':
+        # Atualiza o nome da simulação
+        novo_nome_simulacao = request.form.get('nome_simulacao')
+        if not novo_nome_simulacao:
+            flash('O nome da simulação não pode ficar vazio.', 'danger')
+            eventos_dict_error = {evento.mes_offset: evento for evento in sim.eventos}
+            return render_template('simulacao_form.html', simulacao=sim, eventos_dict=eventos_dict_error)
+        
+        sim.nome = novo_nome_simulacao
+ 
+        # Atualiza a despesa mensal fixa
+        # Pega o valor do formulário. Se o campo não existir ou estiver vazio, get retorna None ou ''
+        despesa_str = request.form.get('despesa_mensal_fixa') 
+        try:
+            if despesa_str and despesa_str.strip(): # Verifica se não é None e não é apenas espaços
+                sim.despesa_mensal_fixa = float(despesa_str.replace(',', '.'))
+            else:
+                sim.despesa_mensal_fixa = 0.0 # Define como 0.0 se o campo estiver vazio ou não fornecido
+        except ValueError:
+            flash(f'Valor inválido para Despesa Mensal ("{despesa_str}"). Use ponto como separador decimal.', 'danger')
+            eventos_dict_error = {evento.mes_offset: evento for evento in sim.eventos}
+            return render_template('simulacao_form.html', simulacao=sim, eventos_dict=eventos_dict_error)
+
+        # limpar itens/eventos antigos
+        SimulacaoItem.query.filter_by(simulacao_id=id).delete()
+        SimulacaoEvento.query.filter_by(simulacao_id=id).delete()
+        
+        # itens
+        for i in range(1,5): # Supondo um máximo de 4 tipos de itens
+            cnt_str = request.form.get(f'pacientes_{i}')
+            val_str = request.form.get(f'valor_{i}')
+
+            if cnt_str and val_str: # Apenas processa se ambos os campos do item estiverem presentes
+                try:
+                    pacientes = int(cnt_str)
+                    # Substitui vírgula por ponto ANTES de converter para float
+                    valor_sessao = float(val_str.replace(',', '.'))
+                    
+                    db.session.add(SimulacaoItem(
+                        simulacao_id=id,
+                        pacientes=pacientes,
+                        valor_sessao=valor_sessao
+                    ))
+                except ValueError:
+                    flash(f'Valor inválido para item {i} (Nº Pacientes: "{cnt_str}", Valor Sessão: "{val_str}"). Verifique os números e use ponto como separador decimal para valores.', 'danger')
+                    # Recarregar o formulário com os dados atuais para correção
+                    eventos_dict_error = {evento.mes_offset: evento for evento in sim.eventos}
+                    return render_template('simulacao_form.html', simulacao=sim, eventos_dict=eventos_dict_error)
+
+        # eventos
+        for m in range(6): # Para 6 meses
+            delta_str = request.form.get(f'evento_{m}')
+            if delta_str: # Apenas processa se o campo do evento estiver presente
+                try:
+                    delta = int(delta_str)
+                    db.session.add(SimulacaoEvento(simulacao_id=id, mes_offset=m, delta=delta))
+                except ValueError:
+                    flash(f'Valor inválido para o evento do Mês {m+1} (Delta: "{delta_str}"). Deve ser um número inteiro.', 'danger')
+                    eventos_dict_error = {evento.mes_offset: evento for evento in sim.eventos}
+                    return render_template('simulacao_form.html', simulacao=sim, eventos_dict=eventos_dict_error)
+
+        db.session.commit()
+        flash('Simulação salva.', 'success')
+        return redirect(url_for('detalhe_simulacao', id=id))
+    
+    # Para o método GET, preparar dados para o formulário
+    # Os itens já estão em sim.itens
+    # Para os eventos, um dicionário facilita o acesso no template
+    eventos_dict = {evento.mes_offset: evento for evento in sim.eventos}
+    return render_template('simulacao_form.html', simulacao=sim, eventos_dict=eventos_dict)
+
+# DETALHE + GRÁFICO
+@app.route('/simulacoes/<int:id>')
+@login_required
+def detalhe_simulacao(id):
+    sim = Simulacao.query.get_or_404(id)
+
+    # Fator para converter valor de sessão em valor mensal (assumindo 1 sessão/semana, 4 semanas/mês)
+    FATOR_SESSOES_MES = 4
+
+    # Calcular a renda mensal base e o valor de sessão unitário para o delta
+    renda_mensal_base = 0.0
+    valor_unitario_mensal_para_delta = 0.0 # Impacto MENSAL de 1 paciente do delta
+
+    if sim.itens:
+        soma_pacientes_base_total = 0
+        soma_valores_sessao_individuais_itens = 0.0 # Soma dos valores de UMA sessão para cada tipo de item
+
+        for item in sim.itens:
+            pacientes_do_item = item.pacientes or 0
+            valor_sessao_do_item = item.valor_sessao or 0.0
+
+            # Acumula a renda mensal base considerando 4 sessões por mês por paciente
+            renda_mensal_base += pacientes_do_item * valor_sessao_do_item * FATOR_SESSOES_MES
+            
+            soma_pacientes_base_total += pacientes_do_item
+            soma_valores_sessao_individuais_itens += valor_sessao_do_item
+
+        if soma_pacientes_base_total > 0:
+            # O valor unitário para o delta é a média ponderada do valor MENSAL por paciente
+            valor_unitario_mensal_para_delta = renda_mensal_base / soma_pacientes_base_total
+        elif len(sim.itens) > 0 :
+            # Se não há pacientes base, o valor unitário para o delta é a média simples
+            # dos valores de sessão MENSAIS dos tipos de item.
+            media_valor_sessao_individual = soma_valores_sessao_individuais_itens / len(sim.itens)
+            valor_unitario_mensal_para_delta = media_valor_sessao_individual * FATOR_SESSOES_MES
+
+    labels = []
+    data_receita_projetada = []
+    data_despesas_totais = []
+    data_resultado_liquido = []
+
+    renda_mensal_projetada_acumulada = renda_mensal_base
+    despesa_mensal_simulacao = sim.despesa_mensal_fixa or 0.0
+    
+    # Para a tabela detalhada
+    dados_tabela_projecao = []
+    for m in range(6):
+        mes_label = f'Mês {m+1}'
+        labels.append(mes_label)
+
+        # Busca evento para o mês atual (m é o offset, 0 = Mês 1)
+        evt = next((e for e in sim.eventos if e.mes_offset == m), None)
+        if evt:
+            delta_pacientes_mes = evt.delta or 0
+            renda_mensal_projetada_acumulada += delta_pacientes_mes * valor_unitario_mensal_para_delta
+        else:
+            delta_pacientes_mes = 0
+        
+        valor_mensal_atual = round(renda_mensal_projetada_acumulada, 2)
+        resultado_liquido_mes = round(valor_mensal_atual - despesa_mensal_simulacao, 2)
+
+        data_receita_projetada.append(valor_mensal_atual)
+        data_despesas_totais.append(round(despesa_mensal_simulacao, 2))
+        data_resultado_liquido.append(resultado_liquido_mes)
+
+        dados_tabela_projecao.append({
+            "mes": mes_label,
+            "delta_pacientes": delta_pacientes_mes,
+            "mensal": valor_mensal_atual,
+            "semanal_estimada": round(valor_mensal_atual / 4.33, 2) if valor_mensal_atual > 0 else 0.0,
+            "despesa_total_mes": round(despesa_mensal_simulacao, 2),
+            "resultado_liquido_mes": resultado_liquido_mes
+        })
+
+    return render_template('simulacao_detail.html', sim=sim, labels=labels, 
+                           data_receita_projetada=data_receita_projetada, data_despesas_totais=data_despesas_totais,
+                           data_resultado_liquido=data_resultado_liquido, dados_tabela_projecao=dados_tabela_projecao)
+
+# EXCLUIR
+@app.route('/simulacoes/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_simulacao(id):
+    sim = Simulacao.query.get_or_404(id)
+    db.session.delete(sim)
+    db.session.commit()
+    flash('Simulação removida.', 'info')
+    return redirect(url_for('lista_simulacoes'))
 
 
 @app.route('/transacoes/excluir/<int:id>', methods=['POST'])
