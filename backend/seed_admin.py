@@ -18,10 +18,10 @@ if not db_url:
 if db_url.startswith("postgresql://"):
     prefix, rest = db_url.split("://", 1)
     creds, host_part = rest.split("@", 1)
-    user, pw = creds.split(":", 1)
-    user = quote_plus('postgres')
-    pw   = quote_plus('123456')
-    db_url = f"postgresql://{user}:{pw}@{host_part}"
+    parsed_user, parsed_pw = creds.split(":", 1) # Parses user and pw
+    encoded_user = quote_plus(parsed_user) # Uses parsed user
+    encoded_pw   = quote_plus(parsed_pw)   # Uses parsed pw
+    db_url = f"postgresql://{encoded_user}:{encoded_pw}@{host_part}"
 
 # 3) Prepara app Flask apenas para rodar o seed
 app = Flask(__name__)

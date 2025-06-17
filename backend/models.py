@@ -1,7 +1,8 @@
 from backend.db import db
 from sqlalchemy import Column, Integer, String
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
+import secrets # Para gerar tokens seguros
 
 
 class Usuario(db.Model):
@@ -11,12 +12,31 @@ class Usuario(db.Model):
     nome = Column(String(120), nullable=False)
     email = Column(String(120), unique=True, nullable=False)
     senha_hash = Column(String(256), nullable=False)
+    reset_token = db.Column(db.String(100), nullable=True, unique=True)
+    reset_token_expiration = db.Column(db.DateTime, nullable=True)
 
     def set_senha(self, senha):
         self.senha_hash = generate_password_hash(senha)
 
     def check_senha(self, senha):
         return check_password_hash(self.senha_hash, senha)
+
+    def get_reset_token(self, expires_sec=1800): # Token expira em 30 minutos
+        self.reset_token = secrets.token_urlsafe(32)
+        self.reset_token_expiration = datetime.utcnow() + timedelta(seconds=expires_sec)
+        return self.reset_token
+
+    @staticmethod
+    def verify_reset_token(token):
+        user = Usuario.query.filter_by(reset_token=token).first()
+        if user and user.reset_token_expiration > datetime.utcnow():
+            return user
+        # Se o token for inválido ou expirado, limpe-o para segurança, caso exista no usuário.
+        if user:
+            user.reset_token = None
+            user.reset_token_expiration = None
+            db.session.commit()
+        return None
 
     def __repr__(self):
         return f"<Usuario {self.email}>"

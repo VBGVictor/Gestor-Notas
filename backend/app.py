@@ -14,7 +14,7 @@ from flask import (
     session, request, flash, abort, jsonify
 )
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta # timedelta já estava, mas é usado aqui
 from urllib.parse import quote_plus
 from flask_migrate import Migrate
 from sqlalchemy import extract
@@ -66,10 +66,10 @@ if db_url.startswith("postgresql://"):
     # Ex.: postgresql://user:pass@host:port/dbname
     prefix, rest = db_url.split("://", 1)
     creds, host_part = rest.split("@", 1)
-    user, pw = creds.split(":", 1)
-    user = quote_plus('postgres')
-    pw   = quote_plus('123456')
-    db_url = f"postgresql://{user}:{pw}@{host_part}"
+    parsed_user, parsed_pw = creds.split(":", 1)
+    encoded_user = quote_plus(parsed_user)
+    encoded_pw   = quote_plus(parsed_pw)
+    db_url = f"postgresql://{encoded_user}:{encoded_pw}@{host_part}"
 
 app.config['SQLALCHEMY_DATABASE_URI']        = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -100,6 +100,43 @@ def login():
             return redirect(url_for('dashboard'))
         flash('Usuário ou senha inválidos.', 'danger')
     return render_template('login.html')
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def request_reset_token():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = Usuario.query.filter_by(email=email).first()
+        if user:
+            token = user.get_reset_token()
+            db.session.commit()
+            print(f"DEBUG: Link para redefinir senha para {user.email}: {url_for('reset_token', token=token, _external=True)}") # Linha de DEBUG
+            flash('Um e-mail (simulado) foi enviado com instruções para redefinir sua senha.', 'info')
+            return redirect(url_for('login'))
+        else:
+            flash('E-mail não encontrado em nosso sistema.', 'warning')
+    return render_template('request_reset_token.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_token(token):
+    user = Usuario.verify_reset_token(token)
+    if not user:
+        flash('O token de redefinição é inválido ou expirou.', 'warning')
+        return redirect(url_for('request_reset_token'))
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        if not password or not confirm_password or password != confirm_password:
+            flash('As senhas não conferem ou estão vazias.', 'danger')
+            return render_template('reset_password.html', token=token)
+
+        user.set_senha(password)
+        user.reset_token = None # Invalida o token após o uso
+        user.reset_token_expiration = None
+        db.session.commit()
+        flash('Sua senha foi atualizada com sucesso!', 'success')
+        return redirect(url_for('login'))
+    return render_template('reset_password.html', token=token)
 
 @app.route('/register', methods=['GET', 'POST'])
 @login_required
@@ -185,28 +222,36 @@ def novo_paciente():
         if not (nome and cpf and cep and valor_sessao):
             flash('Nome, CPF, CEP e Valor da Sessão são obrigatórios.', 'warning')
         else:
-            # cria paciente
-            p = Paciente(
-                nome=nome, cpf=cpf, profissao=profissao or None,
-                cep=cep, endereco=endereco or None,
-                idade=int(idade) if idade else None,
-                valor_sessao=float(valor_sessao)
-            )
-            db.session.add(p)
-            db.session.commit()
+            try:
+                valor_sessao_float = float(valor_sessao.replace(',', '.'))
+                
+                # cria paciente
+                p = Paciente(
+                    nome=nome, cpf=cpf, profissao=profissao or None,
+                    cep=cep, endereco=endereco or None,
+                    idade=int(idade) if idade and idade.strip() else None,
+                    valor_sessao=valor_sessao_float
+                )
+                db.session.add(p)
+                db.session.commit() # Commit paciente para obter ID se necessário, ou mover para depois da transação
 
-            # registra receita única inicial
-            t = Transacao(
-                nome=f"{p.nome}",
-                tipo='receita',
-                observacao='Receita única ao cadastrar paciente',
-                valor=float(valor_sessao)
-            )
-            db.session.add(t)
-            db.session.commit()
+                # registra receita única inicial
+                t = Transacao(
+                    nome=f"{p.nome}",
+                    tipo='receita',
+                    observacao='Receita única ao cadastrar paciente',
+                    valor=valor_sessao_float
+                )
+                db.session.add(t)
+                db.session.commit()
 
-            flash('Paciente e receita inicial cadastrados com sucesso!', 'success')
-            return redirect(url_for('listar_pacientes'))
+                flash('Paciente e receita inicial cadastrados com sucesso!', 'success')
+                return redirect(url_for('listar_pacientes'))
+            except ValueError:
+                flash('Valor da sessão inválido. Use números e ponto ou vírgula como separador decimal.', 'danger')
+            except Exception as e:
+                flash(f'Ocorreu um erro ao criar o paciente: {e}', 'danger')
+                db.session.rollback()
     return render_template('novo_paciente.html')
 
 @app.route('/pacientes')
@@ -247,12 +292,20 @@ def atualizar_paciente(paciente_id):
     p.profissao    = profissao or None
     p.cep          = cep
     p.endereco     = endereco or None
-    p.idade        = int(idade) if idade else None
-    p.valor_sessao = float(valor_sessao) if valor_sessao else None
-
-    db.session.commit()
-    flash('Paciente atualizado com sucesso!', 'success')
-    return redirect(url_for('listar_pacientes'))
+    p.idade        = int(idade) if idade and idade.strip() else None
+    
+    try:
+        p.valor_sessao = float(valor_sessao.replace(',', '.')) if valor_sessao and valor_sessao.strip() else None
+        db.session.commit()
+        flash('Paciente atualizado com sucesso!', 'success')
+        return redirect(url_for('listar_pacientes'))
+    except ValueError:
+        flash('Valor da sessão inválido. Use números e ponto ou vírgula como separador decimal.', 'danger')
+        return redirect(url_for('editar_paciente', paciente_id=p.id))
+    except Exception as e:
+        flash(f'Ocorreu um erro ao atualizar o paciente: {e}', 'danger')
+        db.session.rollback()
+        return redirect(url_for('editar_paciente', paciente_id=p.id))
 
 @app.route('/pacientes/<int:paciente_id>/sessao', methods=['POST'])
 @login_required
@@ -374,6 +427,7 @@ def novo_transacao():
 
         nova = Transacao(nome=nome, observacao=observacao, valor=valor, tipo=tipo, data_criacao=datetime.now())
         db.session.add(nova) # Adiciona a nova transação à sessão
+        db.session.commit()  # Persiste a transação no banco de dados
 
         flash('Transação criada com sucesso!', 'success')
         return redirect(url_for('transacoes'))
@@ -395,17 +449,17 @@ def editar_transacao(id):
         if not (nome and tipo and valor and data_str):
             flash('Nome, tipo, valor e data são obrigatórios.', 'warning')
         else:
-            t.nome = nome
-            t.tipo = tipo
-            t.observacao = observacao or None
-            t.valor = float(valor)
-
             try:
+                valor_float = float(valor.replace(',', '.'))
                 data_nova = datetime.strptime(data_str, '%Y-%m-%d')
                
                 hora =  0
                 minuto =  0
 
+                t.nome = nome
+                t.tipo = tipo
+                t.observacao = observacao or None
+                t.valor = valor_float
                 t.data_criacao = datetime(
                     data_nova.year,
                     data_nova.month,
@@ -413,13 +467,16 @@ def editar_transacao(id):
                     hora,
                     minuto
                 )
-            except ValueError:
-                flash('Data inválida.', 'warning')
+                db.session.commit()
+                flash('Transação atualizada com sucesso!', 'success')
+                return redirect(url_for('transacoes'))
+            except ValueError as ve:
+                flash(f'Valor ou Data inválida: {ve}. Use ponto ou vírgula para decimais e formato AAAA-MM-DD para data.', 'warning')
                 return render_template('editar_transacao.html', transacao=t)
-
-            db.session.commit()
-            flash('Transação atualizada com sucesso!', 'success')
-            return redirect(url_for('transacoes'))
+            except Exception as e:
+                flash(f'Ocorreu um erro ao atualizar a transação: {e}', 'danger')
+                db.session.rollback()
+                return render_template('editar_transacao.html', transacao=t)
 
     return render_template('editar_transacao.html', transacao=t)
 
